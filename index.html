@@ -1173,12 +1173,54 @@ function renderStudentList(gi){
   alumnos.forEach((al,ai)=>{
     const initials=(al.nome||'?').split(/[,\s]+/).filter(Boolean).map(w=>w[0].toUpperCase()).slice(0,2).join('');
     const div=document.createElement('div');div.className='student-item';
+    div.style.cssText='position:relative;padding-right:48px';
     div.innerHTML=`<div class="student-avatar">${initials||'?'}</div>
       <div style="flex:1"><div class="student-name">${esc(al.nome||'(sen nome)')}</div>
         <div class="student-meta">${esc(al.curso||'')} ${esc(al.grupo||'')} · ${esc(al.nacem||'')}</div></div>
-      <span style="color:var(--bordо);font-size:20px">›</span>`;
-    div.onclick=()=>openAlumno(gi,ai);cont.appendChild(div);
+      <span class="student-arrow" style="color:var(--bordо);font-size:20px;margin-right:6px">›</span>
+      <button onclick="deleteAlumno(event,${gi},${ai})" style="
+        position:absolute;right:10px;top:50%;transform:translateY(-50%);
+        background:none;border:1.5px solid var(--border);border-radius:8px;
+        padding:5px 9px;font-size:13px;color:var(--mid);cursor:pointer;
+        transition:all .2s;line-height:1" title="Borrar alumno/a">🗑</button>`;
+    div.querySelector('.student-arrow').onclick=(e)=>{e.stopPropagation();openAlumno(gi,ai);};
+    div.onclick=()=>openAlumno(gi,ai);
+    cont.appendChild(div);
   });
+}
+function deleteAlumno(e,gi,ai){
+  e.stopPropagation();
+  const gk=`g${gi}`;
+  const nome=(state[gk]||{}).alumnos?.[ai]?.nome||'este alumno/a';
+  if(!confirm(`Borrar a "${nome}" da listaxe?\nEsta acción non se pode desfacer.`))return;
+  state[gk].alumnos.splice(ai,1);
+  saveAll();
+  renderStudentList(gi);
+  renderEvalTable(gi);
+  showToast('🗑 Alumno/a eliminado/a');
+}
+function calcNotaFinal(t,o,e1,e2,l){
+  const vt=parseFloat(String(t).replace(',','.'))||0;
+  const vo=parseFloat(String(o).replace(',','.'))||0;
+  const ve1=parseFloat(String(e1).replace(',','.'))||0;
+  const ve2=parseFloat(String(e2).replace(',','.'))||0;
+  const vl=parseFloat(String(l).replace(',','.'))||0;
+  if(!t&&!o&&!e1&&!e2&&!l)return'';
+  const nota=vt*0.10+vo*0.10+((ve1+ve2)/2)*0.70+vl*0.10;
+  return Math.round(nota*100)/100;
+}
+function setEvalAndRecalc(inp,evalGi,origIdx,av,key){
+  const val=inp.value;
+  setAlumnoEvalV2(evalGi,origIdx,av,key,val);
+  const row=inp.closest('tr');if(!row)return;
+  const get=k=>row.querySelector(`[data-key="${k}"]`)?.value||'';
+  const nota=calcNotaFinal(get('traballo'),get('oralidade'),get('exame1'),get('exame2'),get('libro'));
+  const notaEl=row.querySelector('.nota-auto');
+  if(notaEl){
+    notaEl.textContent=nota!==''?nota:'—';
+    notaEl.style.color=nota>=5?'var(--verde)':'var(--bordо)';
+  }
+  setAlumnoEvalV2(evalGi,origIdx,av,'nota',nota!==''?String(nota):'');
 }
 function renderEvalTable(gi){
   // Ler o grupo seleccionado no despregable
@@ -1213,15 +1255,20 @@ function renderEvalTable(gi){
   sorted.forEach((entry,i)=>{
     const origIdx=entry._oi;
     const evKey=`eval${av}`;const ev=entry[evKey]||{};
+    const nota=calcNotaFinal(ev.traballo||'',ev.oralidade||'',ev.exame1||'',ev.exame2||'',ev.libro||'');
+    const notaColor=nota!==''?(nota>=5?'var(--verde)':'var(--bordо)'):'var(--mid)';
     const tr=document.createElement('tr');
+    tr.dataset.gi=evalGi;tr.dataset.origIdx=origIdx;tr.dataset.av=av;
     let cells=`<td class="num">${i+1}</td>
       <td class="nome-cell" style="background:var(--paper2);vertical-align:middle">
         <span style="display:block;padding:0 8px;font-size:12px;font-weight:700;color:var(--azul)">${esc(entry.nome)}</span>
       </td>`;
     EVAL_COLS.forEach(c=>{
-      cells+=`<td class="${c.cls}"><input type="text" value="${esc(ev[c.key]||'')}" maxlength="5" placeholder="—" onchange="setAlumnoEvalV2(${evalGi},${origIdx},${av},'${c.key}',this.value)"></td>`;
+      cells+=`<td class="${c.cls}"><input type="text" data-key="${c.key}" value="${esc(ev[c.key]||'')}" maxlength="5" placeholder="—" onchange="setEvalAndRecalc(this,${evalGi},${origIdx},${av},'${c.key}')"></td>`;
     });
-    cells+=`<td class="aval-cell"><input type="text" value="${esc(ev.nota||'')}" maxlength="5" placeholder="—" onchange="setAlumnoEvalV2(${evalGi},${origIdx},${av},'nota',this.value)"></td>`;
+    cells+=`<td class="aval-cell" style="text-align:center;vertical-align:middle">
+      <span class="nota-auto" style="font-weight:900;font-size:14px;color:${notaColor}">${nota!==''?nota:'—'}</span>
+    </td>`;
     tr.innerHTML=cells;tbody.appendChild(tr);
   });
 
@@ -1235,7 +1282,7 @@ function renderEvalTable(gi){
     EVAL_COLS.forEach(c=>{
       cells+=`<td class="${c.cls}"><input type="text" maxlength="5" placeholder="—" disabled style="opacity:.4"></td>`;
     });
-    cells+=`<td class="aval-cell"><input type="text" maxlength="5" placeholder="—" disabled style="opacity:.4"></td>`;
+    cells+=`<td class="aval-cell" style="text-align:center;vertical-align:middle"><span style="color:var(--border);font-size:13px">—</span></td>`;
     tr.innerHTML=cells;tbody.appendChild(tr);
   }
 }
