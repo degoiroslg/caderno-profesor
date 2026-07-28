@@ -974,6 +974,36 @@ body::before{
       </div>
     </div>
   </div>
+  <div class="form-section sec-azul">
+    <h4>Normativa engadida por min</h4>
+    <div id="lex-custom-list"></div>
+    <div style="margin-top:14px;border-top:1.5px dashed var(--border);padding-top:14px">
+      <div style="font-size:12px;font-weight:700;color:var(--azul);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">➕ Nova entrada</div>
+      <div class="field-row">
+        <div class="field">
+          <label>Título da norma</label>
+          <textarea id="lex-new-titulo" rows="2" placeholder="Ex: DECRETO 156/2022, do 15 de setembro..."></textarea>
+        </div>
+      </div>
+      <div class="field-row col2">
+        <div class="field">
+          <label>Publicación e data</label>
+          <input type="text" id="lex-new-meta" placeholder="Ex: DOG · 26 de setembro de 2022">
+        </div>
+        <div class="field">
+          <label>Texto do enlace</label>
+          <input type="text" id="lex-new-linktxt" placeholder="Ex: Abrir no DOG">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>URL do enlace</label>
+          <input type="url" id="lex-new-url" placeholder="https://...">
+        </div>
+      </div>
+      <button class="stamp-btn azul full" onclick="addLexEntry()" style="margin-top:4px">⚖️ Engadir á lexislación</button>
+    </div>
+  </div>
 </div>
 
 </div><!-- /main -->
@@ -1048,6 +1078,7 @@ function showView(id,title){
   document.getElementById('hdr-pdf').style.display=(id!=='v-portada')?'block':'none';
   if(id==='v-index')document.getElementById('hdr-pdf').onclick=()=>exportPDF('all');
   else document.getElementById('hdr-pdf').onclick=()=>exportPDF('section');
+  if(id==='v-lexislacion')renderLexCustom();
   document.getElementById('main').scrollTop=0;
 }
 function navTo(id,title){
@@ -1835,6 +1866,57 @@ function exportPDF(mode){
 // ══ UTIL ══
 function esc(str){return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
+// ══ LEXISLACIÓN PERSONALIZADA ══
+function addLexEntry(){
+  const titulo=document.getElementById('lex-new-titulo').value.trim();
+  const meta=document.getElementById('lex-new-meta').value.trim();
+  const url=document.getElementById('lex-new-url').value.trim();
+  const linktxt=document.getElementById('lex-new-linktxt').value.trim()||'Abrir enlace';
+  if(!titulo){showToast('⚠️ Escribe o título da norma');return;}
+  if(!state.lexCustom)state.lexCustom=[];
+  state.lexCustom.push({titulo,meta,url,linktxt});
+  saveAll();
+  renderLexCustom();
+  document.getElementById('lex-new-titulo').value='';
+  document.getElementById('lex-new-meta').value='';
+  document.getElementById('lex-new-url').value='';
+  document.getElementById('lex-new-linktxt').value='';
+  showToast('✓ Entrada engadida');
+}
+function deleteLexEntry(i){
+  if(!confirm('Eliminar esta entrada de lexislación?'))return;
+  state.lexCustom.splice(i,1);
+  saveAll();
+  renderLexCustom();
+  showToast('🗑 Entrada eliminada');
+}
+function renderLexCustom(){
+  const cont=document.getElementById('lex-custom-list');
+  if(!cont)return;
+  const entries=state.lexCustom||[];
+  cont.innerHTML='';
+  if(entries.length===0){
+    cont.innerHTML='<p style="font-size:12px;color:var(--mid);font-style:italic;padding:4px 0">Non hai entradas engadidas aínda.</p>';
+    return;
+  }
+  entries.forEach((e,i)=>{
+    const card=document.createElement('div');
+    card.className='lex-card';
+    card.style.position='relative';
+    card.innerHTML=`
+      <div class="lex-card-title">${esc(e.titulo)}</div>
+      ${e.meta?`<div class="lex-card-meta">${esc(e.meta)}</div>`:''}
+      ${e.url?`<div style="margin-top:10px"><a class="lex-card-link" href="${esc(e.url)}" target="_blank" rel="noopener noreferrer">🔗 ${esc(e.linktxt)}</a></div>`:''}
+      <button onclick="deleteLexEntry(${i})" style="
+        position:absolute;top:10px;right:10px;
+        background:#fff0f0;border:1.5px solid #e8a0a0;border-radius:8px;
+        padding:4px 10px;font-size:11px;color:#c0392b;cursor:pointer;font-weight:700">
+        🗑
+      </button>`;
+    cont.appendChild(card);
+  });
+}
+
 // ══ INIT ══
 document.addEventListener('DOMContentLoaded',()=>{
   loadState();
@@ -1843,6 +1925,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   buildPlanificacion();
   buildNotes();
   renderMeetings();
+  renderLexCustom();
   restorePDF();
   actualizarDescGrupos();
   if(state.portadaImg)applyPortadaImg(state.portadaImg);
